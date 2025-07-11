@@ -1,0 +1,69 @@
+FROM openjdk:8-jdk-slim
+
+RUN apt-get update && apt-get install -y \
+    wget \
+    ssh \
+    pdsh \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget -q https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz \
+    && tar xzf hadoop-3.3.6.tar.gz -C /opt/ \
+    && rm hadoop-3.3.6.tar.gz \
+    && ln -s /opt/hadoop-3.3.6 /opt/hadoop
+
+ENV HADOOP_HOME=/opt/hadoop
+ENV PATH=$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$PATH
+ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+
+RUN mkdir -p $HADOOP_CONF_DIR
+
+RUN echo '<configuration>\
+  <property>\
+    <name>fs.defaultFS</name>\
+    <value>hdfs://192.168.34.2:8020</value>\
+  </property>\
+</configuration>' > $HADOOP_CONF_DIR/core-site.xml
+
+RUN echo '<configuration>\
+  <property>\
+    <name>yarn.resourcemanager.address</name>\
+    <value>192.168.34.2:8032</value>\
+  </property>\
+  <property>\
+    <name>yarn.resourcemanager.scheduler.address</name>\
+    <value>192.168.34.2:8030</value>\
+  </property>\
+  <property>\
+    <name>yarn.resourcemanager.resource-tracker.address</name>\
+    <value>192.168.34.2:8031</value>\
+  </property>\
+  <property>\
+    <name>yarn.application.classpath</name>\
+    <value>$HADOOP_HOME/etc/hadoop:$HADOOP_HOME/share/hadoop/common/*:$HADOOP_HOME/share/hadoop/common/lib/*:$HADOOP_HOME/share/hadoop/hdfs/*:$HADOOP_HOME/share/hadoop/hdfs/lib/*:$HADOOP_HOME/share/hadoop/mapreduce/*:$HADOOP_HOME/share/hadoop/mapreduce/lib/*:$HADOOP_HOME/share/hadoop/yarn/*:$HADOOP_HOME/share/hadoop/yarn/lib/*</value>\
+  </property>\
+</configuration>' > $HADOOP_CONF_DIR/yarn-site.xml
+
+RUN echo '<configuration>\
+  <property>\
+    <name>mapreduce.framework.name</name>\
+    <value>yarn</value>\
+  </property>\
+  <property>\
+    <name>yarn.app.mapreduce.am.env</name>\
+    <value>HADOOP_MAPRED_HOME=$HADOOP_HOME</value>\
+  </property>\
+  <property>\
+    <name>mapreduce.map.env</name>\
+    <value>HADOOP_MAPRED_HOME=$HADOOP_HOME</value>\
+  </property>\
+  <property>\
+    <name>mapreduce.reduce.env</name>\
+    <value>HADOOP_MAPRED_HOME=$HADOOP_HOME</value>\
+  </property>\
+</configuration>' > $HADOOP_CONF_DIR/mapred-site.xml
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
